@@ -1,4 +1,4 @@
-log_dir: "Models/JVS10_normal"
+log_dir: "Models/JVS10_integration"
 save_freq: 30
 device: "cuda"
 epochs: 150

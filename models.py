@@ -239,7 +239,7 @@ class Generator(nn.Module):
 
 
 class MappingNetwork(nn.Module):
-    def __init__(self, latent_dim=16, style_dim=48, num_domains=2, hidden_dim=384):
+    def __init__(self, latent_dim=16, style_dim=48, hidden_dim=384):
         super().__init__()
         layers = []
         layers += [nn.Linear(latent_dim, hidden_dim)]
@@ -247,31 +247,22 @@ class MappingNetwork(nn.Module):
         for _ in range(3):
             layers += [nn.Linear(hidden_dim, hidden_dim)]
             layers += [nn.ReLU()]
+
+        layers += [nn.Linear(hidden_dim, hidden_dim),
+                    nn.ReLU(),
+                    nn.Linear(hidden_dim, hidden_dim),
+                    nn.ReLU(),
+                    nn.Linear(hidden_dim, hidden_dim),
+                    nn.ReLU(),
+                    nn.Linear(hidden_dim, style_dim)]
         self.shared = nn.Sequential(*layers)
 
-        self.unshared = nn.ModuleList()
-        for _ in range(num_domains):
-            self.unshared += [nn.Sequential(nn.Linear(hidden_dim, hidden_dim),
-                                            nn.ReLU(),
-                                            nn.Linear(hidden_dim, hidden_dim),
-                                            nn.ReLU(),
-                                            nn.Linear(hidden_dim, hidden_dim),
-                                            nn.ReLU(),
-                                            nn.Linear(hidden_dim, style_dim))]
-
-    def forward(self, z, y):
-        h = self.shared(z)
-        out = []
-        for layer in self.unshared:
-            out += [layer(h)]
-        out = torch.stack(out, dim=1)  # (batch, num_domains, style_dim)
-        idx = torch.LongTensor(range(y.size(0))).to(y.device)
-        s = out[idx, y]  # (batch, style_dim)
-        return s
+    def forward(self, z):
+        return self.shared(z)
 
 
 class StyleEncoder(nn.Module):
-    def __init__(self, dim_in=48, style_dim=48, num_domains=2, max_conv_dim=384):
+    def __init__(self, dim_in=48, style_dim=48, max_conv_dim=384):
         super().__init__()
         blocks = []
         blocks += [nn.Conv2d(1, dim_in, 3, 1, 1)]
@@ -286,25 +277,12 @@ class StyleEncoder(nn.Module):
         blocks += [nn.Conv2d(dim_out, dim_out, 5, 1, 0)]
         blocks += [nn.AdaptiveAvgPool2d(1)]
         blocks += [nn.LeakyReLU(0.2)]
+        blocks += [nn.Flatten()]
+        blocks += [nn.Linear(dim_out, style_dim)]
         self.shared = nn.Sequential(*blocks)
 
-        self.unshared = nn.ModuleList()
-        for _ in range(num_domains):
-            self.unshared += [nn.Linear(dim_out, style_dim)]
-
-    def forward(self, x, y):
-        h = self.shared(x)
-
-        h = h.view(h.size(0), -1)
-        out = []
-
-        for layer in self.unshared:
-            out += [layer(h)]
-
-        out = torch.stack(out, dim=1)  # (batch, num_domains, style_dim)
-        idx = torch.LongTensor(range(y.size(0))).to(y.device)
-        s = out[idx, y]  # (batch, style_dim)
-        return s
+    def forward(self, x):
+        return self.shared(x)
 
 class Discriminator(nn.Module):
     def __init__(self, dim_in=48, num_domains=2, max_conv_dim=384, repeat_num=4):
@@ -369,8 +347,8 @@ class Discriminator2d(nn.Module):
 
 def build_model(args, F0_model, ASR_model):
     generator = Generator(args.dim_in, args.style_dim, args.max_conv_dim, w_hpf=args.w_hpf, F0_channel=args.F0_channel)
-    mapping_network = MappingNetwork(args.latent_dim, args.style_dim, args.num_domains, hidden_dim=args.max_conv_dim)
-    style_encoder = StyleEncoder(args.dim_in, args.style_dim, args.num_domains, args.max_conv_dim)
+    mapping_network = MappingNetwork(args.latent_dim, args.style_dim, hidden_dim=args.max_conv_dim)
+    style_encoder = StyleEncoder(args.dim_in, args.style_dim, args.max_conv_dim)
     discriminator = Discriminator(args.dim_in, args.num_domains, args.max_conv_dim, args.n_repeat)
     generator_ema = copy.deepcopy(generator)
     mapping_network_ema = copy.deepcopy(mapping_network)

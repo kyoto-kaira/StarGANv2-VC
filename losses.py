@@ -35,9 +35,9 @@ def compute_d_loss(nets, args, x_real, y_org, y_trg, z_trg=None, x_ref=None, use
     # with fake audios
     with torch.no_grad():
         if z_trg is not None:
-            s_trg = nets.mapping_network(z_trg, y_trg)
+            s_trg = nets.mapping_network(z_trg)
         else:  # x_ref is not None
-            s_trg = nets.style_encoder(x_ref, y_trg)
+            s_trg = nets.style_encoder(x_ref)
             
         F0 = nets.f0_model.get_feature_GAN(x_real)
         x_fake = nets.generator(x_real, s_trg, masks=None, F0=F0)
@@ -79,9 +79,9 @@ def compute_g_loss(nets, args, x_real, y_org, y_trg, z_trgs=None, x_refs=None, u
         
     # compute style vectors
     if z_trgs is not None:
-        s_trg = nets.mapping_network(z_trg, y_trg)
+        s_trg = nets.mapping_network(z_trg)
     else:
-        s_trg = nets.style_encoder(x_ref, y_trg)
+        s_trg = nets.style_encoder(x_ref)
     
     # compute ASR/F0 features (real)
     with torch.no_grad():
@@ -116,14 +116,14 @@ def compute_g_loss(nets, args, x_real, y_org, y_trg, z_trgs=None, x_refs=None, u
     loss_asr = F.smooth_l1_loss(ASR_fake, ASR_real)
     
     # style reconstruction loss
-    s_pred = nets.style_encoder(x_fake, y_trg)
+    s_pred = nets.style_encoder(x_fake)
     loss_sty = torch.mean(torch.abs(s_pred - s_trg))
     
     # diversity sensitive loss
     if z_trgs is not None:
-        s_trg2 = nets.mapping_network(z_trg2, y_trg)
+        s_trg2 = nets.mapping_network(z_trg2)
     else:
-        s_trg2 = nets.style_encoder(x_ref2, y_trg)
+        s_trg2 = nets.style_encoder(x_ref2)
     x_fake2 = nets.generator(x_real, s_trg2, masks=None, F0=GAN_F0_real)
     x_fake2 = x_fake2.detach()
     _, GAN_F0_fake2, _ = nets.f0_model(x_fake2)
@@ -131,7 +131,7 @@ def compute_g_loss(nets, args, x_real, y_org, y_trg, z_trgs=None, x_refs=None, u
     loss_ds += F.smooth_l1_loss(GAN_F0_fake, GAN_F0_fake2.detach())
     
     # cycle-consistency loss
-    s_org = nets.style_encoder(x_real, y_org)
+    s_org = nets.style_encoder(x_real)
     x_rec = nets.generator(x_fake, s_org, masks=None, F0=GAN_F0_fake)
     loss_cyc = torch.mean(torch.abs(x_rec - x_real))
     # F0 loss in cycle-consistency loss
