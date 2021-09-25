@@ -137,6 +137,8 @@ def main(config_path):
         if (epoch % save_freq) == 0:
             trainer.save_checkpoint(osp.join(log_dir, 'epoch_%05d.pth' % epoch))
 
+    trainer.save_checkpoint(osp.join(log_dir, 'epoch_%05d.pth' % epochs))
+
     return 0
 
 def get_data_path_list(train_path=None, val_path=None):

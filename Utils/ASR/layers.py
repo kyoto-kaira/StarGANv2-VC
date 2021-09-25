@@ -8,7 +8,6 @@ import torchaudio
 import torchaudio.functional as audio_F
 
 import random
-random.seed(0)
 
 
 def _get_activation_fn(activ):
