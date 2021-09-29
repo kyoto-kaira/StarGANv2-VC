@@ -32,8 +32,8 @@ def numpy2tensor(wave):
 def build_model(model_params={}):
     args = Munch(model_params)
     generator = Generator(args.dim_in, args.style_dim, args.max_conv_dim, w_hpf=args.w_hpf, F0_channel=args.F0_channel)
-    mapping_network = MappingNetwork(args.latent_dim, args.style_dim, args.num_domains, hidden_dim=args.max_conv_dim)
-    style_encoder = StyleEncoder(args.dim_in, args.style_dim, args.num_domains, args.max_conv_dim)
+    mapping_network = MappingNetwork(args.latent_dim, args.style_dim, hidden_dim=args.max_conv_dim)
+    style_encoder = StyleEncoder(args.dim_in, args.style_dim, args.max_conv_dim)
     
     nets_ema = Munch(generator=generator,
                      mapping_network=mapping_network,
@@ -51,13 +51,13 @@ def compute_style(reference_path, speaker_id):
         mel_tensor = numpy2tensor(wave).to('cuda')
 
         with torch.no_grad():
-            label = torch.LongTensor([speaker_id])
-            ref = starganv2.style_encoder(mel_tensor.unsqueeze(1), label)
+            # label = torch.LongTensor([speaker_id])
+            ref = starganv2.style_encoder(mel_tensor.unsqueeze(1))
 
     else:
-        label = torch.LongTensor([speaker_id]).to('cuda')
+        # label = torch.LongTensor([speaker_id]).to('cuda')
         latent_dim = starganv2.mapping_network.shared[0].in_features
-        ref = starganv2.mapping_network(torch.randn(1, latent_dim).to('cuda'), label)
+        ref = starganv2.mapping_network(torch.randn(1, latent_dim).to('cuda'))
 
     return ref
 
