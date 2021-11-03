@@ -77,7 +77,7 @@ def main(config_path):
     ASR_config = config.get('ASR_config', False)
     ASR_path = config.get('ASR_path', False)
     with open(ASR_config) as f:
-            ASR_config = yaml.safe_load(f)
+        ASR_config = yaml.safe_load(f)
     ASR_model_config = ASR_config['model_params']
     ASR_model = ASRCNN(**ASR_model_config)
     params = torch.load(ASR_path, map_location='cpu')['model']
@@ -91,7 +91,9 @@ def main(config_path):
     F0_model.load_state_dict(params)
     
     # build model
-    model, model_ema = build_model(Munch(config['model_params']), F0_model, ASR_model)
+    with open(os.path.join(config['GEN_path'], 'config.yml')) as f:
+        starganv2_config = yaml.safe_load(f)
+    model = build_model(Munch(starganv2_config['model_params']), F0_model, ASR_model)
 
     scheduler_params = {
         "max_lr": float(config['optimizer_params'].get('lr', 2e-4)),
@@ -101,14 +103,11 @@ def main(config_path):
     }
     
     _ = [model[key].to(device) for key in model]
-    _ = [model_ema[key].to(device) for key in model_ema]
-    scheduler_params_dict = {key: scheduler_params.copy() for key in model}
-    scheduler_params_dict['mapping_network']['max_lr'] = 2e-6
-    optimizer = build_optimizer({key: model[key].parameters() for key in model},
+    scheduler_params_dict = {"hearnet": scheduler_params.copy()}
+    optimizer = build_optimizer({"hearnet": model["hearnet"].parameters()},
                                       scheduler_params_dict=scheduler_params_dict)
 
     trainer = Trainer(args=Munch(config['loss_params']), model=model,
-                            model_ema=model_ema,
                             optimizer=optimizer,
                             device=device,
                             train_dataloader=train_dataloader,

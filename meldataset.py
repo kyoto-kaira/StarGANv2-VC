@@ -41,10 +41,7 @@ class MelDataset(torch.utils.data.Dataset):
                  ):
 
         _data_list = [l[:-1].split('|') for l in data_list]
-        self.data_list = [(path, int(label)) for path, label in _data_list]
-        self.data_list_per_class = {
-            target: [(path, label) for path, label in self.data_list if label == target] \
-            for target in list(set([label for _, label in self.data_list]))}
+        self.data_list = [path for path, label in _data_list]
 
         self.sr = sr
         self.to_melspec = torchaudio.transforms.MelSpectrogram(**MEL_PARAMS)
@@ -58,15 +55,29 @@ class MelDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         data = self.data_list[idx]
-        mel_tensor, label = self._load_data(data)
-        ref_data = random.choice(self.data_list)
-        ref_mel_tensor, ref_label = self._load_data(ref_data)
-        ref2_data = random.choice(self.data_list_per_class[ref_label])
-        ref2_mel_tensor, _ = self._load_data(ref2_data)
-        return mel_tensor, label, ref_mel_tensor, ref2_mel_tensor, ref_label
+        mel_tensor = self._load_data(data)
+
+        r = random.random()
+        if r < 0.5:
+            ref_mel_tensor = mel_tensor
+            ref2_mel_tensor = mel_tensor
+            label = 0
+        else:
+            ref_data = random.choice(self.data_list)
+            ref_mel_tensor = self._load_data(ref_data)
+
+            if r < 0.75:
+                ref2_mel_tensor = ref_mel_tensor
+                label = 1
+            else:
+                ref2_data = random.choice(self.data_list)
+                ref2_mel_tensor = self._load_data(ref2_data)
+                label = 2
+        
+        return mel_tensor, ref_mel_tensor, ref2_mel_tensor, label
     
     def _load_data(self, path):
-        wave_tensor, label = self._load_tensor(path)
+        wave_tensor = self._load_tensor(path)
         
         if not self.validation: # random scale for robustness
             random_scale = 0.5 + 0.5 * np.random.random()
@@ -79,7 +90,7 @@ class MelDataset(torch.utils.data.Dataset):
             random_start = np.random.randint(0, mel_length - self.max_mel_length)
             mel_tensor = mel_tensor[:, random_start:random_start + self.max_mel_length]
 
-        return mel_tensor, label
+        return mel_tensor
 
     def _preprocess(self, wave_tensor, ):
         mel_tensor = self.to_melspec(wave_tensor)
@@ -87,11 +98,10 @@ class MelDataset(torch.utils.data.Dataset):
         return mel_tensor
 
     def _load_tensor(self, data):
-        wave_path, label = data
-        label = int(label)
+        wave_path = data
         wave, sr = sf.read(wave_path)
         wave_tensor = torch.from_numpy(wave).float()
-        return wave_tensor, label
+        return wave_tensor
 
 class Collater(object):
     """
@@ -110,12 +120,11 @@ class Collater(object):
         batch_size = len(batch)
         nmels = batch[0][0].size(0)
         mels = torch.zeros((batch_size, nmels, self.max_mel_length)).float()
-        labels = torch.zeros((batch_size)).long()
         ref_mels = torch.zeros((batch_size, nmels, self.max_mel_length)).float()
         ref2_mels = torch.zeros((batch_size, nmels, self.max_mel_length)).float()
-        ref_labels = torch.zeros((batch_size)).long()
+        labels = torch.zeros((batch_size)).long()
 
-        for bid, (mel, label, ref_mel, ref2_mel, ref_label) in enumerate(batch):
+        for bid, (mel, ref_mel, ref2_mel, label) in enumerate(batch):
             mel_size = mel.size(1)
             mels[bid, :, :mel_size] = mel
             
@@ -126,13 +135,9 @@ class Collater(object):
             ref2_mels[bid, :, :ref2_mel_size] = ref2_mel
             
             labels[bid] = label
-            ref_labels[bid] = ref_label
 
-        z_trg = torch.randn(batch_size, self.latent_dim)
-        z_trg2 = torch.randn(batch_size, self.latent_dim)
-        
         mels, ref_mels, ref2_mels = mels.unsqueeze(1), ref_mels.unsqueeze(1), ref2_mels.unsqueeze(1)
-        return mels, labels, ref_mels, ref2_mels, ref_labels, z_trg, z_trg2
+        return mels, ref_mels, ref2_mels, labels
 
 def build_dataloader(path_list,
                      validation=False,

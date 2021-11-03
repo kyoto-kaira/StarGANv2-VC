@@ -106,11 +106,12 @@ class AdaIN(nn.Module):
 
 
 class AdainResBlk(nn.Module):
-    def __init__(self, dim_in, dim_out, style_dim=64, w_hpf=0,
+    def __init__(self, dim_in, dim_out, style_dim=64, w_hpf=0, adain=True,
                  actv=nn.LeakyReLU(0.2), upsample='none'):
         super().__init__()
         self.w_hpf = w_hpf
         self.actv = actv
+        self.adain = adain
         self.upsample = UpSample(upsample)
         self.learned_sc = dim_in != dim_out
         self._build_weights(dim_in, dim_out, style_dim)
@@ -118,8 +119,8 @@ class AdainResBlk(nn.Module):
     def _build_weights(self, dim_in, dim_out, style_dim=64):
         self.conv1 = nn.Conv2d(dim_in, dim_out, 3, 1, 1)
         self.conv2 = nn.Conv2d(dim_out, dim_out, 3, 1, 1)
-        self.norm1 = AdaIN(style_dim, dim_in)
-        self.norm2 = AdaIN(style_dim, dim_out)
+        self.norm1 = AdaIN(style_dim, dim_in) if self.adain else nn.BatchNorm2d(dim_in)
+        self.norm2 = AdaIN(style_dim, dim_out) if self.adain else nn.BatchNorm2d(dim_out)
         if self.learned_sc:
             self.conv1x1 = nn.Conv2d(dim_in, dim_out, 1, 1, 0, bias=False)
 
@@ -130,11 +131,11 @@ class AdainResBlk(nn.Module):
         return x
 
     def _residual(self, x, s):
-        x = self.norm1(x, s)
+        x = self.norm1(x, s) if self.adain else self.norm1(x)
         x = self.actv(x)
         x = self.upsample(x)
         x = self.conv1(x)
-        x = self.norm2(x, s)
+        x = self.norm2(x, s) if self.adain else self.norm2(x)
         x = self.actv(x)
         x = self.conv2(x)
         return x
@@ -231,6 +232,63 @@ class Generator(nn.Module):
         for block in self.decode:
             x = block(x, s)
             if (masks is not None) and (x.size(2) in [32, 64, 128]):
+                mask = masks[0] if x.size(2) in [32] else masks[1]
+                mask = F.interpolate(mask, size=x.size(2), mode='bilinear')
+                x = x + self.hpf(mask * cache[x.size(2)])
+
+        return self.to_out(x)
+
+
+class HEARNet(nn.Module):
+    def __init__(self, dim_in=48, max_conv_dim=48*8):
+        super().__init__()
+
+        self.stem = nn.Conv2d(2, dim_in, 3, 1, 1)
+        self.encode = nn.ModuleList()
+        self.decode = nn.ModuleList()
+        self.to_out = nn.Sequential(
+            nn.InstanceNorm2d(dim_in, affine=True),
+            nn.LeakyReLU(0.2),
+            nn.Conv2d(dim_in, 1, 1, 1, 0))
+        # down/up-sampling blocks
+        repeat_num = 4 #int(np.log2(img_size)) - 4
+
+        for lid in range(repeat_num):
+            if lid in [1, 3]:
+                _downtype = 'timepreserve'
+            else:
+                _downtype = 'half'
+
+            dim_out = min(dim_in*2, max_conv_dim)
+            self.encode.append(
+                ResBlk(dim_in, dim_out, normalize=True, downsample=_downtype))
+            self.decode.insert(
+                0, AdainResBlk(dim_out, dim_in, style_dim=None, 
+                               adain=False, upsample=_downtype))  # stack-like
+            dim_in = dim_out
+
+        # bottleneck blocks (encoder)
+        for _ in range(2):
+            self.encode.append(
+                ResBlk(dim_out, dim_out, normalize=True))
+
+        # bottleneck blocks (decoder)
+        for _ in range(2):
+            self.decode.insert(
+                    0, AdainResBlk(dim_out, dim_out, style_dim=None, adain=False))
+
+    def forward(self, x, x_delta):
+        x = torch.cat([x, x_delta], 1)
+        x = self.stem(x)
+        cache = {}
+        for block in self.encode:
+            if x.size(2) in [32, 64, 128]:
+                cache[x.size(2)] = x
+            x = block(x)
+
+        for block in self.decode:
+            x = block(x, None)
+            if x.size(2) in [32, 64, 128]:
                 mask = masks[0] if x.size(2) in [32] else masks[1]
                 mask = F.interpolate(mask, size=x.size(2), mode='bilinear')
                 x = x + self.hpf(mask * cache[x.size(2)])
@@ -347,6 +405,7 @@ class Discriminator2d(nn.Module):
 
 def build_model(args, F0_model, ASR_model):
     generator = Generator(args.dim_in, args.style_dim, args.max_conv_dim, w_hpf=args.w_hpf, F0_channel=args.F0_channel)
+    hearnet = HEARNet(args.dim_in, args.max_conv_dim)
     mapping_network = MappingNetwork(args.latent_dim, args.style_dim, hidden_dim=args.max_conv_dim)
     style_encoder = StyleEncoder(args.dim_in, args.style_dim, args.max_conv_dim)
     discriminator = Discriminator(args.dim_in, args.num_domains, args.max_conv_dim, args.n_repeat)
@@ -359,10 +418,7 @@ def build_model(args, F0_model, ASR_model):
                  style_encoder=style_encoder,
                  discriminator=discriminator,
                  f0_model=F0_model,
-                 asr_model=ASR_model)
+                 asr_model=ASR_model,
+                 hearnet=hearnet)
     
-    nets_ema = Munch(generator=generator_ema,
-                     mapping_network=mapping_network_ema,
-                     style_encoder=style_encoder_ema)
-
-    return nets, nets_ema
+    return nets
