@@ -1,3 +1,23 @@
+# StarGANv2-VC 改善開発
+https://github.com/yl4579/StarGANv2-VC からのフォークリポジトリです。
+
+## データセット
+[JVSコーパス](https://sites.google.com/site/shinnosuketakamichi/research-topics/jvs_corpus)から選定した10人分の音声データを用いました。これをダウンロードし解凍後、フォルダ名を`jvs_ver1`から`data`に変更し、`Data`フォルダ下に設置してください。
+
+## 学習済みモデル
+上記データセットで学習させたモデルを提供します。[リンク](https://drive.google.com/file/d/1hhUYLUg4UG_CSr9lPsmtHDAMyAGVU7ob/view?usp=sharing)
+また、メルスペクトログラムから音声データへ変換するために使用するVocoderは元リポジトリと同じものを使用していますのでこちらもダウンロードしてください。
+ [ParallelWaveGAN Link](https://drive.google.com/file/d/1q8oSAzwkqi99oOGXDZyLypCiz0Qzn3Ab/view?usp=sharing)
+
+## 推論
+学習済みモデルとVocoderのモデルをダウンロード・解凍した後、`inference.py`を実行してください。実行引数は以下の通りです。
+ - `--source` ソース音声のパス(任意のファイルでOK)。
+ - `--reference` リファレンス音声のパス。`Data/val_list.txt`の中から選んでください。
+ - `--reference_id` リファレンス音声の話者のインデックス。`Data/val_list.txt`の右端に記載されています。(0~9の数字)
+`--reference`と`--reference_id`を設定しなかった場合は、ランダムに選択されます。実行後、ソース音声とリファレンス音声が`source.wav`、`reference.wav`というファイル名でコピーされ、変換後の音声が`converted.wav`という名前で保存されます。
+
+==================================================================================================
+
 # StarGANv2-VC: A Diverse, Unsupervised, Non-parallel Framework for Natural-Sounding Voice Conversion
 
 ### Yinghao Aaron Li, Ali Zare, Nima Mesgarani
