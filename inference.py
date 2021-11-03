@@ -42,8 +42,8 @@ def build_model(model_params={}):
     return nets_ema
 
 
-def compute_style(reference_path, speaker_id):
-    if reference_path is not None:
+def compute_style(reference_path, by_latent=False):
+    if not by_latent:
         wave, sr = librosa.load(reference_path, sr=24000)
         audio, index = librosa.effects.trim(wave, top_db=30)
         if sr != 24000:
@@ -51,25 +51,23 @@ def compute_style(reference_path, speaker_id):
         mel_tensor = numpy2tensor(wave).to('cuda')
 
         with torch.no_grad():
-            # label = torch.LongTensor([speaker_id])
             ref = starganv2.style_encoder(mel_tensor.unsqueeze(1))
 
     else:
-        # label = torch.LongTensor([speaker_id]).to('cuda')
         latent_dim = starganv2.mapping_network.shared[0].in_features
         ref = starganv2.mapping_network(torch.randn(1, latent_dim).to('cuda'))
 
     return ref
 
 
-def inference(f0_model, vocoder, starganv2, source_path, reference_path, reference_id):
+def inference(f0_model, vocoder, starganv2, source_path, reference_path, by_latent=False):
     # load source wave
     audio, source_sr = librosa.load(source_path, sr=24000)
     audio /= np.max(np.abs(audio))
     source = numpy2tensor(audio).to('cuda')
 
     # load reference wave
-    reference = compute_style(reference_path, reference_id)
+    reference = compute_style(reference_path, by_latent)
 
     with torch.no_grad():
         f0_feat = F0_model.get_feature_GAN(source.unsqueeze(1))
@@ -87,7 +85,7 @@ if __name__ == "__main__":
     parser.add_argument("--log_dir", type=str, default="Models/JVS10_normal", help="where models were saved")
     parser.add_argument("--source", type=str, default=None, help="source audio file path")
     parser.add_argument("--reference", type=str, default=None, help="reference audio file path")
-    parser.add_argument("--reference_id", type=int, default=None, help="reference speaker ID")
+    parser.add_argument("--by_latent", action="store_true", help="use mapping network")
 
     args = parser.parse_args()
 
@@ -125,21 +123,18 @@ if __name__ == "__main__":
 
 
     # load reference audio
-    if args.reference is None:
+    if args.reference is None and not args.by_latent:
         with open('Data/val_list.txt', 'r') as f:
             val_list = f.read().split('\n')[:-1]
 
         reference_data = random.choice(val_list)
-        args.reference, args.reference_id = reference_data.split('|')
-        args.reference_id = int(args.reference_id)
-    elif args.reference_id is None:
-        args.reference_id = random.randint(0, starganv2_config["model_params"]["num_domains"]-1)
+        args.reference, _ = reference_data.split('|')
 
-
-    converted = inference(F0_model, vocoder, starganv2, args.source, args.reference, args.reference_id)
+    converted = inference(F0_model, vocoder, starganv2, args.source, args.reference, args.by_latent)
 
     # save results
-    # shutil.copy(args.source, "source.wav")
-    shutil.copy(args.reference, "reference.wav")
+    shutil.copy(args.source, "source.wav")
+    if args.reference:
+        shutil.copy(args.reference, "reference.wav")
     soundfile.write("converted.wav", converted, 24000)
     
