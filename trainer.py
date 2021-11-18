@@ -166,10 +166,8 @@ class Trainer(object):
             g_loss, g_losses_ref = compute_g_loss(
                 self.model, self.args, x_real, [x_ref, x_ref2], label)
 
-            for key in d_losses_latent:
-                eval_losses["eval/%s" % key].append(d_losses_latent[key])
-            for key in g_losses_latent:
-                eval_losses["eval/%s" % key].append(g_losses_latent[key])
+            for key in g_losses_ref:
+                eval_losses["eval/%s" % key].append(g_losses_ref[key])
 
         eval_losses = {key: np.mean(value) for key, value in eval_losses.items()}
         eval_losses.update(eval_images)

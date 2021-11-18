@@ -124,7 +124,17 @@ class Collater(object):
         ref2_mels = torch.zeros((batch_size, nmels, self.max_mel_length)).float()
         labels = torch.zeros((batch_size)).long()
 
+        num_label_is_0 = 0
+
         for bid, (mel, ref_mel, ref2_mel, label) in enumerate(batch):
+            if bid == batch_size-1 and num_label_is_0 == 0:
+                label = 0
+                ref_mel = mel
+                ref2_mel = mel
+
+            if label == 0:
+                num_label_is_0 += 1
+
             mel_size = mel.size(1)
             mels[bid, :, :mel_size] = mel
             
