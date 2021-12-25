@@ -108,9 +108,9 @@ def main(src1, src2, ref1, ref2):
     converted = inference(source, reference)
     
     result_name = source_name + "_" + reference_name + ".wav"
-    audiofile.write(f"./tmp/{result_name}", converted, 24000)
+    audiofile.write(f"tmp/{result_name}", converted, 24000)
 
-    return "SUCCESS : 変換が完了しました", f"./tmp/{result_name}"
+    return "SUCCESS : 変換が完了しました", f"tmp/{result_name}"
 
 
 
@@ -151,6 +151,8 @@ if __name__ == "__main__":
     num = np.random.permutation(13) + 1
     idx = np.random.permutation(100) + 1
     examples = [[None, None, None, None] for i in range(5)]
+    os.makedirs('sample', exist_ok=True)
+    os.makedirs('tmp', exist_ok=True)
     for i in range(10):
         path = f"./Data/data/jvs{idx[i]:03}/parallel100/wav24kHz16bit/VOICEACTRESS100_{num[i]:03}.wav"
         shutil.copy(path, f"sample/sample{i+1:02}.wav")
