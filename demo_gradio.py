@@ -108,9 +108,9 @@ def main(src1, src2, ref1, ref2):
     converted = inference(source, reference)
     
     result_name = source_name + "_" + reference_name + ".wav"
-    audiofile.write(f"/tmp/{result_name}", converted, 24000)
+    audiofile.write(f"./tmp/{result_name}", converted, 24000)
 
-    return "SUCCESS : 変換が完了しました", f"/tmp/{result_name}"
+    return "SUCCESS : 変換が完了しました", f"./tmp/{result_name}"
 
 
 
@@ -152,7 +152,7 @@ if __name__ == "__main__":
     idx = np.random.permutation(100) + 1
     examples = [[None, None, None, None] for i in range(5)]
     for i in range(10):
-        path = f"./Data/jvs_ver1/jvs{idx[i]:03}/parallel100/wav24kHz16bit/VOICEACTRESS100_{num[i]:03}.wav"
+        path = f"./Data/data/jvs{idx[i]:03}/parallel100/wav24kHz16bit/VOICEACTRESS100_{num[i]:03}.wav"
         shutil.copy(path, f"sample/sample{i+1:02}.wav")
         
         examples[i//2][2*(i%2)] = f"sample/sample{i+1:02}.wav"
@@ -168,7 +168,7 @@ if __name__ == "__main__":
     output_log = gr.outputs.Textbox(type="str", label="ログ")
     output_audio = gr.outputs.Audio(type="file", label="変換結果")
 
-    with open("demo_readme.md", "r") as f:
+    with open("demo_readme.md", "r", encoding='utf-8') as f:
         readme = f.read()
 
     iface = gr.Interface(fn=main, 
