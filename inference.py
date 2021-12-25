@@ -82,7 +82,7 @@ def inference(f0_model, vocoder, starganv2, source_path, reference_path, by_late
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--log_dir", type=str, default="Models/JVS10_normal", help="where models were saved")
+    parser.add_argument("--log_dir", type=str, default="Models/JVS100_normal", help="where models were saved")
     parser.add_argument("--source", type=str, default=None, help="source audio file path")
     parser.add_argument("--reference", type=str, default=None, help="reference audio file path")
     parser.add_argument("--by_latent", action="store_true", help="use mapping network")

@@ -246,7 +246,7 @@ if __name__ == "__main__":
     np.random.seed(0)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--log_dir", type=str, default="Models/JVS10_normal", 
+    parser.add_argument("--log_dir", type=str, default="Models/JVS100_normal", 
                         help="where models were saved")
     parser.add_argument("--batch", type=int, default=4, 
                         help="batch size")
